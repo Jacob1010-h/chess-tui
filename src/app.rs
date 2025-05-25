@@ -4,7 +4,7 @@ use toml::Value;
 
 use crate::{
     constants::{DisplayMode, Pages, Popups},
-    game_logic::{bot::Bot, game::Game, opponent::Opponent},
+    game_logic::{game::Game, opponent::Opponent},
     pieces::PieceColor,
     server::game_server::GameServer,
 };
