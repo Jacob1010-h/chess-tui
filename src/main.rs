@@ -2,10 +2,8 @@
 extern crate chess_tui;
 
 use chess_tui::app::{App, AppResult};
-use chess_tui::constants::{home_dir, DisplayMode};
+use chess_tui::constants::home_dir;
 use chess_tui::event::{Event, EventHandler};
-use chess_tui::game_logic::game::GameState;
-use chess_tui::game_logic::opponent::wait_for_game_start;
 use chess_tui::handler::{handle_key_events, handle_mouse_events};
 use chess_tui::logging;
 use chess_tui::ui::tui::Tui;
@@ -45,34 +43,6 @@ fn main() -> AppResult<()> {
     // Create an application.
     let mut app = App::default();
 
-    // We store the chess engine path if there is one
-    if let Ok(content) = fs::read_to_string(config_path) {
-        if content.trim().is_empty() {
-            app.chess_engine_path = None;
-        } else {
-            let config = content.parse::<toml::Value>().unwrap();
-            if let Some(engine_path) = config.get("engine_path") {
-                app.chess_engine_path = Some(engine_path.as_str().unwrap().to_string());
-            }
-            // Set the display mode based on the configuration file
-            if let Some(display_mode) = config.get("display_mode") {
-                app.game.ui.display_mode = match display_mode.as_str() {
-                    Some("ASCII") => DisplayMode::ASCII,
-                    _ => DisplayMode::DEFAULT,
-                };
-            }
-            // Add log level handling
-            if let Some(log_level) = config.get("log_level") {
-                app.log_level = log_level
-                    .as_str()
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(LevelFilter::Off);
-            }
-        }
-    } else {
-        println!("Error reading the file or the file does not exist");
-    }
-
     // Setup logging
     if let Err(e) = logging::setup_logging(&folder_path, &app.log_level) {
         eprintln!("Failed to initialize logging: {}", e);
@@ -104,45 +74,6 @@ fn main() -> AppResult<()> {
             Event::Key(key_event) => handle_key_events(key_event, &mut app)?,
             Event::Mouse(mouse_event) => handle_mouse_events(mouse_event, &mut app)?,
             Event::Resize(_, _) => {}
-        }
-
-        if app.game.opponent.is_some()
-            && app
-                .game
-                .opponent
-                .as_ref()
-                .is_some_and(|opponent| !opponent.game_started)
-        {
-            let opponent = app.game.opponent.as_mut().unwrap();
-            wait_for_game_start(opponent.stream.as_ref().unwrap());
-            opponent.game_started = true;
-            app.current_popup = None;
-        }
-
-        // If it's the opponent turn, wait for the opponent to move
-        if app.game.opponent.is_some()
-            && app
-                .game
-                .opponent
-                .as_ref()
-                .is_some_and(|opponent| opponent.opponent_will_move)
-        {
-            tui.draw(&mut app)?;
-
-            if !app.game.game_board.is_checkmate(app.game.player_turn)
-                && !app.game.game_board.is_draw(app.game.player_turn)
-            {
-                app.game.execute_opponent_move();
-                app.game.switch_player_turn();
-            }
-
-            // need to be centralised
-            if app.game.game_board.is_checkmate(app.game.player_turn) {
-                app.game.game_state = GameState::Checkmate;
-            } else if app.game.game_board.is_draw(app.game.player_turn) {
-                app.game.game_state = GameState::Draw;
-            }
-            tui.draw(&mut app)?;
         }
     }
 

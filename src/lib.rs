@@ -7,8 +7,6 @@ pub mod event;
 /// Widget renderer.
 pub mod ui;
 
-pub mod server;
-
 /// Event handler.
 pub mod handler;
 

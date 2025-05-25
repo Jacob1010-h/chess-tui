@@ -391,14 +391,6 @@ impl UI {
 
                     last_move_from = invert_position(&last_move.map(|m| m.from).unwrap());
                     last_move_to = invert_position(&last_move.map(|m| m.to).unwrap());
-
-                    // If the opponent is the same as the last move player, we don't want to show his last move
-                    if game.opponent.is_some()
-                        && game.opponent.as_ref().unwrap().color == game.player_turn
-                    {
-                        last_move_from = Coord::undefined();
-                        last_move_to = Coord::undefined();
-                    }
                 }
 
                 let mut positions: Vec<Coord> = vec![];

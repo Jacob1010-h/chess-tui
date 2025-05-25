@@ -16,9 +16,6 @@ use crate::{
     },
 };
 
-use super::popups::{
-    render_enter_multiplayer_ip, render_multiplayer_selection_popup, render_wait_for_other_player,
-};
 use crate::{
     app::App,
     constants::{DisplayMode, Pages, TITLE},
@@ -33,27 +30,6 @@ pub fn render(app: &mut App, frame: &mut Frame<'_>) {
     if app.current_page == Pages::Solo {
         render_game_ui(frame, app, main_area);
     }
-    // Multiplayer game
-    else if app.current_page == Pages::Multiplayer {
-        if app.hosting.is_none() {
-            app.current_popup = Some(Popups::MultiplayerSelection);
-        } else if app.selected_color.is_none() && app.hosting.unwrap() {
-            app.current_popup = Some(Popups::ColorSelection);
-        } else if app.game.opponent.is_none() {
-            if app.host_ip.is_none() {
-                if app.hosting.is_some() && app.hosting.unwrap() {
-                    app.setup_game_server(app.selected_color.unwrap());
-                    app.host_ip = Some("127.0.0.1".to_string());
-                } else {
-                    app.current_popup = Some(Popups::EnterHostIP);
-                }
-            } else {
-                app.create_opponent();
-            }
-        } else if app.game.opponent.as_mut().unwrap().game_started {
-            render_game_ui(frame, app, main_area);
-        }
-    }
     // Render menu
     else {
         render_menu_ui(frame, app, main_area);
@@ -67,15 +43,6 @@ pub fn render(app: &mut App, frame: &mut Frame<'_>) {
     match app.current_popup {
         Some(Popups::ColorSelection) => {
             render_color_selection_popup(frame, app);
-        }
-        Some(Popups::MultiplayerSelection) => {
-            render_multiplayer_selection_popup(frame, app);
-        }
-        Some(Popups::EnterHostIP) => {
-            render_enter_multiplayer_ip(frame, &app.game.ui.prompt);
-        }
-        Some(Popups::WaitingForOpponentToJoin) => {
-            render_wait_for_other_player(frame, app.get_host_ip());
         }
         Some(Popups::Help) => {
             render_help_popup(frame);
@@ -150,13 +117,7 @@ pub fn render_menu_ui(frame: &mut Frame, app: &App, main_area: Rect) {
     };
 
     // Board block representing the full board div
-    let menu_items = [
-        "Normal game",
-        "Multiplayer",
-        &display_mode_menu,
-        "Help",
-        "Credits",
-    ];
+    let menu_items = ["Normal game", &display_mode_menu, "Help", "Credits"];
     let mut menu_body: Vec<Line<'_>> = vec![];
 
     for (i, menu_item) in menu_items.iter().enumerate() {
@@ -259,14 +220,10 @@ pub fn render_game_ui(frame: &mut Frame<'_>, app: &mut App, main_area: Rect) {
             PieceColor::Black => "Black",
         };
 
-        render_end_popup(
-            frame,
-            &format!("{string_color} Won !!!"),
-            app.game.opponent.is_some(),
-        );
+        render_end_popup(frame, &format!("{string_color} Won !!!"));
     }
 
     if app.game.game_state == GameState::Draw {
-        render_end_popup(frame, "That's a draw", app.game.opponent.is_some());
+        render_end_popup(frame, "That's a draw");
     }
 }

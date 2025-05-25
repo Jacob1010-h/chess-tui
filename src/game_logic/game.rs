@@ -1,8 +1,5 @@
-use super::{coord::Coord, game_board::GameBoard, opponent::Opponent, ui::UI};
-use crate::{
-    pieces::{PieceColor, PieceMove, PieceType},
-    utils::get_int_from_char,
-};
+use super::{coord::Coord, game_board::GameBoard, ui::UI};
+use crate::pieces::{PieceColor, PieceMove, PieceType};
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum GameState {
@@ -17,8 +14,6 @@ pub struct Game {
     pub game_board: GameBoard,
     /// The struct to handle UI related stuff
     pub ui: UI,
-    /// The other player when playing in multiplayer
-    pub opponent: Option<Opponent>,
     /// Which player is it to play
     pub player_turn: PieceColor,
     /// The current state of the game (Playing, Draw, Checkmate. Promotion)
@@ -27,17 +22,9 @@ pub struct Game {
 
 impl Clone for Game {
     fn clone(&self) -> Self {
-        let opponent_clone = self.opponent.as_ref().map(|p| Opponent {
-            stream: p.stream.as_ref().and_then(|s| s.try_clone().ok()),
-            opponent_will_move: p.opponent_will_move,
-            color: p.color,
-            game_started: p.game_started,
-        });
-
         Game {
             game_board: self.game_board.clone(),
             ui: self.ui.clone(),
-            opponent: opponent_clone,
             player_turn: self.player_turn,
             game_state: self.game_state,
         }
@@ -49,7 +36,6 @@ impl Default for Game {
         Self {
             game_board: GameBoard::default(),
             ui: UI::default(),
-            opponent: None,
             player_turn: PieceColor::White,
             game_state: GameState::Playing,
         }
@@ -62,7 +48,6 @@ impl Game {
         Self {
             game_board,
             ui: UI::default(),
-            opponent: None,
             player_turn,
             game_state: GameState::Playing,
         }
@@ -115,11 +100,8 @@ impl Game {
 
     pub fn handle_promotion(&mut self) {
         self.promote_piece();
-
-        if self.opponent.is_some() {
-            self.handle_multiplayer_promotion();
-        }
     }
+
     pub fn already_selected_cell_action(&mut self) {
         // We already selected a piece so we apply the move
         if self.ui.cursor_coordinates.is_valid() {
@@ -133,37 +115,11 @@ impl Game {
                 self.game_state = GameState::Draw;
             }
 
-            if (self.opponent.is_none())
-                && (!self.game_board.is_latest_move_promotion()
-                    || self.game_board.is_draw(self.player_turn)
-                    || self.game_board.is_checkmate(self.player_turn))
+            if !self.game_board.is_latest_move_promotion()
+                || self.game_board.is_draw(self.player_turn)
+                || self.game_board.is_checkmate(self.player_turn)
             {
                 self.game_board.flip_the_board();
-            }
-
-            // If we play against a player we will wait for his move
-            if self.opponent.is_some() {
-                if self.game_board.is_latest_move_promotion() {
-                    self.game_state = GameState::Promotion;
-                } else {
-                    if self.game_board.is_checkmate(self.player_turn) {
-                        self.game_state = GameState::Checkmate;
-                    }
-
-                    if self.game_board.is_draw(self.player_turn) {
-                        self.game_state = GameState::Draw;
-                    }
-
-                    if !(self.game_state == GameState::Checkmate) {
-                        if let Some(opponent) = self.opponent.as_mut() {
-                            opponent.opponent_will_move = true;
-                        }
-                    }
-                    self.opponent
-                        .as_mut()
-                        .unwrap()
-                        .send_move_to_server(self.game_board.move_history.last().unwrap(), None);
-                }
             }
         }
     }
@@ -220,7 +176,6 @@ impl Game {
         self.ui.promotion_cursor = 0;
         if !self.game_board.is_draw(self.player_turn)
             && !self.game_board.is_checkmate(self.player_turn)
-            && self.opponent.is_none()
         {
             self.game_board.flip_the_board();
         }
@@ -260,7 +215,7 @@ impl Game {
         if self.game_board.is_latest_move_castling(*from, *to) {
             // we set the king 2 cells on where it came from
             let from_x: i32 = from.col as i32;
-            let mut new_to = to;
+            let new_to = to;
             let to_x: i32 = to.col as i32;
 
             let distance = from_x - to_x;
@@ -299,54 +254,5 @@ impl Game {
         });
         // We store the current position of the board
         self.game_board.board_history.push(self.game_board.board);
-    }
-
-    pub fn execute_opponent_move(&mut self) {
-        let opponent_move = self.opponent.as_mut().unwrap().read_stream();
-        self.game_board.flip_the_board();
-        self.opponent.as_mut().unwrap().opponent_will_move = false;
-
-        if opponent_move.is_empty() {
-            return;
-        }
-
-        let from_y = get_int_from_char(opponent_move.chars().next());
-        let from_x = get_int_from_char(opponent_move.chars().nth(1));
-        let to_y = get_int_from_char(opponent_move.chars().nth(2));
-        let to_x = get_int_from_char(opponent_move.chars().nth(3));
-
-        let mut promotion_piece: Option<PieceType> = None;
-        if opponent_move.chars().count() == 5 {
-            promotion_piece = match opponent_move.chars().nth(4) {
-                Some('q') => Some(PieceType::Queen),
-                Some('r') => Some(PieceType::Rook),
-                Some('b') => Some(PieceType::Bishop),
-                Some('n') => Some(PieceType::Knight),
-                _ => None,
-            };
-        }
-
-        let from = &Coord::new(from_y, from_x);
-        let to = &Coord::new(to_y, to_x);
-
-        self.execute_move(from, to);
-
-        if promotion_piece.is_some() {
-            self.game_board.board[to_y as usize][to_x as usize] =
-                Some((promotion_piece.unwrap(), self.player_turn));
-        }
-        self.game_board.flip_the_board();
-    }
-
-    pub fn handle_multiplayer_promotion(&mut self) {
-        let opponent = self.opponent.as_mut().unwrap();
-
-        let last_move_promotion_type = self.game_board.get_last_move_piece_type_as_string();
-
-        opponent.send_move_to_server(
-            self.game_board.move_history.last().unwrap(),
-            Some(last_move_promotion_type),
-        );
-        opponent.opponent_will_move = true;
     }
 }

@@ -4,17 +4,14 @@ use toml::Value;
 
 use crate::{
     constants::{DisplayMode, Pages, Popups},
-    game_logic::{game::Game, opponent::Opponent},
+    game_logic::game::Game,
     pieces::PieceColor,
-    server::game_server::GameServer,
 };
+
 use std::{
     error,
     fs::{self, File},
     io::Write,
-    net::{IpAddr, UdpSocket},
-    thread::sleep,
-    time::Duration,
 };
 
 /// Application result type.
@@ -32,14 +29,8 @@ pub struct App {
     pub current_popup: Option<Popups>,
     // Selected color when playing against the bot
     pub selected_color: Option<PieceColor>,
-    /// Hosting
-    pub hosting: Option<bool>,
-    /// Host Ip
-    pub host_ip: Option<String>,
     /// menu current cursor
     pub menu_cursor: u8,
-    /// path of the chess engine
-    pub chess_engine_path: Option<String>,
     pub log_level: LevelFilter,
 }
 
@@ -51,10 +42,7 @@ impl Default for App {
             current_page: Pages::Home,
             current_popup: None,
             selected_color: None,
-            hosting: None,
-            host_ip: None,
             menu_cursor: 0,
-            chess_engine_path: None,
             log_level: LevelFilter::Off,
         }
     }
@@ -76,74 +64,9 @@ impl App {
         }
     }
 
-    pub fn setup_game_server(&mut self, host_color: PieceColor) {
-        let is_host_white = host_color == PieceColor::White;
-
-        log::info!("Starting game server with host color: {:?}", host_color);
-
-        std::thread::spawn(move || {
-            let game_server = GameServer::new(is_host_white);
-            log::info!("Game server created, starting server...");
-            game_server.run();
-        });
-
-        sleep(Duration::from_millis(100));
-    }
-
-    pub fn create_opponent(&mut self) {
-        let other_player_color = if self.selected_color.is_some() {
-            Some(self.selected_color.unwrap().opposite())
-        } else {
-            None
-        };
-
-        if self.hosting.unwrap() {
-            log::info!("Setting up host with color: {:?}", self.selected_color);
-            self.current_popup = Some(Popups::WaitingForOpponentToJoin);
-            self.host_ip = Some(format!("{}:2308", self.get_host_ip()));
-        }
-
-        let addr = self.host_ip.as_ref().unwrap().to_string();
-        let addr_with_port = addr.to_string();
-        log::info!("Attempting to connect to: {}", addr_with_port);
-
-        // ping the server to see if it's up
-        let s = UdpSocket::bind(addr_with_port.clone());
-        if s.is_err() {
-            log::error!(
-                "Server is unreachable at {}: {}",
-                addr_with_port,
-                s.err().unwrap()
-            );
-            self.host_ip = None;
-            return;
-        }
-
-        log::info!("Creating opponent with color: {:?}", other_player_color);
-        self.game.opponent = Some(Opponent::new(addr_with_port, other_player_color));
-
-        if !self.hosting.unwrap() {
-            log::info!("Setting up client (non-host) player");
-            self.selected_color = Some(self.game.opponent.as_mut().unwrap().color.opposite());
-            self.game.opponent.as_mut().unwrap().game_started = true;
-        }
-
-        if self.selected_color.unwrap() == PieceColor::Black {
-            log::debug!("Flipping board for black player");
-            self.game.game_board.flip_the_board();
-        }
-    }
-
     pub fn go_to_home(&mut self) {
         self.current_page = Pages::Home;
         self.restart();
-    }
-
-    pub fn get_host_ip(&self) -> IpAddr {
-        let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
-        socket.connect("8.8.8.8:80").unwrap(); // Use an external IP to identify the default route
-
-        socket.local_addr().unwrap().ip()
     }
 
     /// Handles the tick event of the terminal.
@@ -193,17 +116,8 @@ impl App {
         self.selected_color = Some(color);
     }
 
-    pub fn hosting_selection(&mut self) {
-        let choice = self.menu_cursor == 0;
-        self.hosting = Some(choice);
-        self.current_popup = None;
-    }
-
     pub fn restart(&mut self) {
-        let opponent = self.game.opponent.clone();
         self.game = Game::default();
-
-        self.game.opponent = opponent;
         self.current_popup = None;
     }
 
@@ -211,18 +125,14 @@ impl App {
         match self.menu_cursor {
             0 => self.current_page = Pages::Solo,
             1 => {
-                self.menu_cursor = 0;
-                self.current_page = Pages::Multiplayer
-            }
-            2 => {
                 self.game.ui.display_mode = match self.game.ui.display_mode {
                     DisplayMode::ASCII => DisplayMode::DEFAULT,
                     DisplayMode::DEFAULT => DisplayMode::ASCII,
                 };
                 self.update_config();
             }
-            3 => self.toggle_help_popup(),
-            4 => self.current_page = Pages::Credit,
+            2 => self.toggle_help_popup(),
+            3 => self.current_page = Pages::Credit,
             _ => {}
         }
     }
@@ -256,9 +166,6 @@ impl App {
         self.game = Game::default();
         self.current_popup = None;
         self.selected_color = None;
-        self.hosting = None;
-        self.host_ip = None;
         self.menu_cursor = 0;
-        self.chess_engine_path = None;
     }
 }

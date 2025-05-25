@@ -42,21 +42,16 @@ pub fn home_dir() -> Result<PathBuf, &'static str> {
 pub enum Pages {
     Home,
     Solo,
-    Multiplayer,
     Credit,
 }
 impl Pages {
     pub fn variant_count() -> usize {
-        6
+        4
     }
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Popups {
     ColorSelection,
-    MultiplayerSelection,
-    EnterHostIP,
-    WaitingForOpponentToJoin,
-    EnginePathError,
     Help,
 }
