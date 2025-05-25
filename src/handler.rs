@@ -67,9 +67,8 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
             // Counter handlers
             // Counter handlers
             KeyCode::Right | KeyCode::Char('l') => {
-                if (app.current_page == Pages::Multiplayer
-                    && (app.hosting.is_none() || app.selected_color.is_none()))
-                    || (app.current_page == Pages::Bot && app.selected_color.is_none())
+                if app.current_page == Pages::Multiplayer
+                    && (app.hosting.is_none() || app.selected_color.is_none())
                 {
                     app.menu_cursor_right(2);
                 } else if app.game.game_state == GameState::Promotion {
@@ -86,9 +85,8 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
             }
 
             KeyCode::Left | KeyCode::Char('h') => {
-                if (app.current_page == Pages::Multiplayer
-                    && (app.hosting.is_none() || app.selected_color.is_none()))
-                    || (app.current_page == Pages::Bot && app.selected_color.is_none())
+                if app.current_page == Pages::Multiplayer
+                    && (app.hosting.is_none() || app.selected_color.is_none())
                 {
                     app.menu_cursor_left(2);
                 } else if app.game.game_state == GameState::Promotion {
@@ -136,14 +134,6 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
             KeyCode::Char(' ') | KeyCode::Enter => match app.current_page {
                 Pages::Home => {
                     app.menu_select();
-                }
-                Pages::Bot => {
-                    if app.selected_color.is_none() {
-                        app.color_selection();
-                        app.bot_setup();
-                    } else {
-                        app.game.handle_cell_click();
-                    }
                 }
                 Pages::Multiplayer => {
                     if app.hosting.is_none() {
@@ -212,9 +202,6 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
             KeyCode::Char('b') => {
                 let display_mode = app.game.ui.display_mode;
                 app.selected_color = None;
-                if app.game.bot.is_some() {
-                    app.game.bot = None;
-                }
                 if app.game.opponent.is_some() {
                     app.game
                         .opponent

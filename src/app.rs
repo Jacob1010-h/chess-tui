@@ -193,24 +193,6 @@ impl App {
         self.selected_color = Some(color);
     }
 
-    pub fn bot_setup(&mut self) {
-        let empty = "".to_string();
-        let path = match self.chess_engine_path.as_ref() {
-            Some(engine_path) => engine_path,
-            None => &empty,
-        };
-
-        // if the selected Color is Black, we need to switch the Game
-        if let Some(color) = self.selected_color {
-            if color == PieceColor::Black {
-                self.game.bot = Some(Bot::new(path, true));
-
-                self.game.execute_bot_move();
-                self.game.player_turn = PieceColor::Black;
-            }
-        }
-    }
-
     pub fn hosting_selection(&mut self) {
         let choice = self.menu_cursor == 0;
         self.hosting = Some(choice);
@@ -218,24 +200,11 @@ impl App {
     }
 
     pub fn restart(&mut self) {
-        let bot = self.game.bot.clone();
         let opponent = self.game.opponent.clone();
         self.game = Game::default();
 
-        self.game.bot = bot;
         self.game.opponent = opponent;
         self.current_popup = None;
-
-        if self.game.bot.as_ref().is_some()
-            && self
-                .game
-                .bot
-                .as_ref()
-                .is_some_and(|bot| bot.is_bot_starting)
-        {
-            self.game.execute_bot_move();
-            self.game.player_turn = PieceColor::Black;
-        }
     }
 
     pub fn menu_select(&mut self) {
@@ -246,18 +215,14 @@ impl App {
                 self.current_page = Pages::Multiplayer
             }
             2 => {
-                self.menu_cursor = 0;
-                self.current_page = Pages::Bot
-            }
-            3 => {
                 self.game.ui.display_mode = match self.game.ui.display_mode {
                     DisplayMode::ASCII => DisplayMode::DEFAULT,
                     DisplayMode::DEFAULT => DisplayMode::ASCII,
                 };
                 self.update_config();
             }
-            4 => self.toggle_help_popup(),
-            5 => self.current_page = Pages::Credit,
+            3 => self.toggle_help_popup(),
+            4 => self.current_page = Pages::Credit,
             _ => {}
         }
     }

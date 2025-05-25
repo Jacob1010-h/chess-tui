@@ -204,14 +204,10 @@ impl UI {
                 let black_move = &game.game_board.move_history[i + 1];
 
                 // Invert black moves if not playing against bot
-                let (from, to) = if game.bot.is_none() {
-                    (
-                        invert_position(&black_move.from),
-                        invert_position(&black_move.to),
-                    )
-                } else {
-                    (black_move.from, black_move.to)
-                };
+                let (from, to) = (
+                    invert_position(&black_move.from),
+                    invert_position(&black_move.to),
+                );
 
                 move_black = convert_position_into_notation(&format!(
                     "{}{}{}{}",
@@ -392,15 +388,9 @@ impl UI {
                 let mut last_move_to = Coord::undefined();
                 if !game.game_board.move_history.is_empty() {
                     last_move = game.game_board.move_history.last();
-                    if game.bot.is_some()
-                        && !game.bot.as_ref().is_some_and(|bot| bot.is_bot_starting)
-                    {
-                        last_move_from = last_move.map(|m| m.from).unwrap();
-                        last_move_to = last_move.map(|m| m.to).unwrap();
-                    } else {
-                        last_move_from = invert_position(&last_move.map(|m| m.from).unwrap());
-                        last_move_to = invert_position(&last_move.map(|m| m.to).unwrap());
-                    }
+
+                    last_move_from = invert_position(&last_move.map(|m| m.from).unwrap());
+                    last_move_to = invert_position(&last_move.map(|m| m.to).unwrap());
 
                     // If the opponent is the same as the last move player, we don't want to show his last move
                     if game.opponent.is_some()

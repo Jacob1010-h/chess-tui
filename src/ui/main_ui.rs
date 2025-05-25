@@ -9,10 +9,10 @@ use ratatui::{
 
 use crate::{
     constants::Popups,
-    game_logic::{bot::Bot, game::GameState},
+    game_logic::game::GameState,
     ui::popups::{
-        render_color_selection_popup, render_credit_popup, render_end_popup,
-        render_engine_path_error_popup, render_help_popup, render_promotion_popup,
+        render_color_selection_popup, render_credit_popup, render_end_popup, render_help_popup,
+        render_promotion_popup,
     },
 };
 
@@ -51,20 +51,6 @@ pub fn render(app: &mut App, frame: &mut Frame<'_>) {
                 app.create_opponent();
             }
         } else if app.game.opponent.as_mut().unwrap().game_started {
-            render_game_ui(frame, app, main_area);
-        }
-    }
-    // Play against bot
-    else if app.current_page == Pages::Bot {
-        if app.chess_engine_path.is_none() || app.chess_engine_path.as_ref().unwrap().is_empty() {
-            render_engine_path_error_popup(frame);
-        } else if app.selected_color.is_none() {
-            app.current_popup = Some(Popups::ColorSelection);
-        } else if app.game.bot.is_none() {
-            let engine_path = app.chess_engine_path.clone().unwrap();
-            let is_bot_starting = app.selected_color.unwrap() == PieceColor::Black;
-            app.game.bot = Some(Bot::new(engine_path.as_str(), is_bot_starting));
-        } else {
             render_game_ui(frame, app, main_area);
         }
     }
@@ -167,7 +153,6 @@ pub fn render_menu_ui(frame: &mut Frame, app: &App, main_area: Rect) {
     let menu_items = [
         "Normal game",
         "Multiplayer",
-        "Play against a bot",
         &display_mode_menu,
         "Help",
         "Credits",

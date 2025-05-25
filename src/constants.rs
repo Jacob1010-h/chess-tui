@@ -43,7 +43,6 @@ pub enum Pages {
     Home,
     Solo,
     Multiplayer,
-    Bot,
     Credit,
 }
 impl Pages {

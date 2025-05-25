@@ -1,4 +1,4 @@
-use super::{bot::Bot, coord::Coord, game_board::GameBoard, opponent::Opponent, ui::UI};
+use super::{coord::Coord, game_board::GameBoard, opponent::Opponent, ui::UI};
 use crate::{
     pieces::{PieceColor, PieceMove, PieceType},
     utils::get_int_from_char,
@@ -17,8 +17,6 @@ pub struct Game {
     pub game_board: GameBoard,
     /// The struct to handle UI related stuff
     pub ui: UI,
-    /// The struct to handle Bot related stuff
-    pub bot: Option<Bot>,
     /// The other player when playing in multiplayer
     pub opponent: Option<Opponent>,
     /// Which player is it to play
@@ -39,7 +37,6 @@ impl Clone for Game {
         Game {
             game_board: self.game_board.clone(),
             ui: self.ui.clone(),
-            bot: self.bot.clone(),
             opponent: opponent_clone,
             player_turn: self.player_turn,
             game_state: self.game_state,
@@ -52,7 +49,6 @@ impl Default for Game {
         Self {
             game_board: GameBoard::default(),
             ui: UI::default(),
-            bot: None,
             opponent: None,
             player_turn: PieceColor::White,
             game_state: GameState::Playing,
@@ -66,7 +62,6 @@ impl Game {
         Self {
             game_board,
             ui: UI::default(),
-            bot: None,
             opponent: None,
             player_turn,
             game_state: GameState::Playing,
@@ -124,10 +119,6 @@ impl Game {
         if self.opponent.is_some() {
             self.handle_multiplayer_promotion();
         }
-
-        if self.bot.is_some() {
-            self.execute_bot_move();
-        }
     }
     pub fn already_selected_cell_action(&mut self) {
         // We already selected a piece so we apply the move
@@ -142,8 +133,7 @@ impl Game {
                 self.game_state = GameState::Draw;
             }
 
-            if (self.bot.is_none() || (self.bot.as_ref().is_some_and(|bot| bot.is_bot_starting)))
-                && (self.opponent.is_none())
+            if (self.opponent.is_none())
                 && (!self.game_board.is_latest_move_promotion()
                     || self.game_board.is_draw(self.player_turn)
                     || self.game_board.is_checkmate(self.player_turn))
@@ -151,29 +141,6 @@ impl Game {
                 self.game_board.flip_the_board();
             }
 
-            // If we play against a bot we will play his move and switch the player turn again
-            if self.bot.is_some() {
-                // do this in background
-                if self.game_board.is_latest_move_promotion() {
-                    self.game_state = GameState::Promotion;
-                }
-
-                if !(self.game_state == GameState::Promotion) {
-                    if self.game_board.is_checkmate(self.player_turn) {
-                        self.game_state = GameState::Checkmate;
-                    }
-
-                    if self.game_board.is_draw(self.player_turn) {
-                        self.game_state = GameState::Draw;
-                    }
-
-                    if !(self.game_state == GameState::Checkmate) {
-                        if let Some(bot) = self.bot.as_mut() {
-                            bot.bot_will_move = true;
-                        }
-                    }
-                }
-            }
             // If we play against a player we will wait for his move
             if self.opponent.is_some() {
                 if self.game_board.is_latest_move_promotion() {
@@ -223,56 +190,6 @@ impl Game {
             }
         }
     }
-
-    /* Method to make a move for the bot
-       We use the UCI protocol to communicate with the chess engine
-    */
-    pub fn execute_bot_move(&mut self) {
-        // Safely extract bot out of self to reduce overlapping borrows
-        let is_bot_starting = if let Some(bot) = self.bot.as_ref() {
-            bot.is_bot_starting
-        } else {
-            return;
-        };
-
-        let fen_position = self
-            .game_board
-            .fen_position(is_bot_starting, self.player_turn);
-
-        // Retrieve the bot move from the bot
-        let bot_move = if let Some(bot) = self.bot.as_mut() {
-            bot.get_bot_move(fen_position)
-        } else {
-            return;
-        };
-
-        let from_y = get_int_from_char(bot_move.chars().next());
-        let from_x = get_int_from_char(bot_move.chars().nth(1));
-        let to_y = get_int_from_char(bot_move.chars().nth(2));
-        let to_x = get_int_from_char(bot_move.chars().nth(3));
-
-        let mut promotion_piece: Option<PieceType> = None;
-        if bot_move.chars().count() == 5 {
-            promotion_piece = match bot_move.chars().nth(4) {
-                Some('q') => Some(PieceType::Queen),
-                Some('r') => Some(PieceType::Rook),
-                Some('b') => Some(PieceType::Bishop),
-                Some('n') => Some(PieceType::Knight),
-                _ => None,
-            };
-        }
-
-        self.execute_move(&Coord::new(from_y, from_x), &Coord::new(to_y, to_x));
-
-        if promotion_piece.is_some() {
-            self.game_board.board[to_y as usize][to_x as usize] =
-                Some((promotion_piece.unwrap(), self.player_turn));
-        }
-        if is_bot_starting {
-            self.game_board.flip_the_board();
-        }
-    }
-
     // Method to promote a pawn
     pub fn promote_piece(&mut self) {
         if let Some(last_move) = self.game_board.move_history.last() {
@@ -304,7 +221,6 @@ impl Game {
         if !self.game_board.is_draw(self.player_turn)
             && !self.game_board.is_checkmate(self.player_turn)
             && self.opponent.is_none()
-            && self.bot.is_none()
         {
             self.game_board.flip_the_board();
         }
@@ -357,14 +273,6 @@ impl Game {
             self.game_board.board[to.row as usize][col_king as usize] = self.game_board.board[from];
 
             // We put the rook 3 cells from it's position if it's a big castling else 2 cells
-            // If it is playing against a bot we will receive 4 -> 6  and 4 -> 2 for to_x instead of 4 -> 7 and 4 -> 0
-            if self.bot.is_some() && to_x == 6 && to.row == 0 {
-                new_to = &Coord { row: 0, col: 7 };
-            }
-            if self.bot.is_some() && to_x == 2 && to.row == 0 {
-                new_to = &Coord { row: 0, col: 0 };
-            }
-
             let col_rook = if distance > 0 {
                 col_king + 1
             } else {
